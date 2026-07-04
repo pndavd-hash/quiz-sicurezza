@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sondaggio Sicurezza Elettrica</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-slate-900 text-white font-sans min-h-screen flex flex-col justify-between p-6">
+
+    <header class="text-center pt-2">
+        <div class="w-12 h-1 bg-amber-500 mx-auto mb-2 rounded-full"></div>
+        <p id="statoIstruzione" class="text-xs text-slate-400 uppercase tracking-widest font-bold">In attesa del relatore...</p>
+    </header>
+
+    <main class="w-full max-w-md mx-auto my-auto" id="quiz-container">
+        <div class="text-center text-slate-500">Connessione al server in corso...</div>
+    </main>
+
+    <footer class="text-center pb-2 text-[10px] text-slate-500">
+        🔒 Risposta 100% anonima • Corso Sicurezza Ospedaliera
+    </footer>
+
+    <script>
+        const firebaseConfig = { databaseURL: "https://sicurezza-ospedale-demo-default-rtdb.europe-west1.firebasedatabase.app/" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Stesso set di domande della regia
+        const domande = [
+            { id: "stop1", q: "Cosa facciamo a casa con i dispositivi elettrici che qui in reparto è estremamente rischioso?", opzioni: ["Usare prolunghe/adattatori", "Staccare le spine tirando il cavo", "Toccare prese con mani umide"] },
+            { id: "stop2", q: "In quale di questi scenari vi sentite più esposti al rischio elettrico durante il turno?", opzioni: ["Fretta nelle emergenze", "Stanchezza a fine turno", "Mancanza di formazione"] },
+            { id: "stop3", q: "Perché in Sala Operatoria NON si usa il classico salvavita di casa?", opzioni: ["Perché interrompe la corrente", "Perché costa troppo", "Perché non protegge l'uomo"] },
+            { id: "stop4", q: "Sinceramente, quante ciabatte elettriche 'in cascata' o cavi tesi sotto i carrelli vedete in reparto?", opzioni: ["Nessuna, tutto a norma", "Qualcuna nei corridoi", "Moltissime, ovunque"] },
+            { id: "stop5", q: "Cosa ci frena davvero dal segnalare un'anomalia elettrica (Near Miss)?", opzioni: ["Paura di ritorsioni", "Fretta / Troppa burocrazia", "Penso che lo farà qualcun altro"] }
+        ];
+
+        let idDomandaCorrente = "";
+        let haGiaVotatoQuestaDomanda = false;
+        let ultimoIndiceRicevuto = -1;
+
+        // Ascolta quale domanda la Regia sta attivando
+        db.ref('stato_quiz/domanda_attiva').on('value', (snapshot) => {
+            const index = snapshot.val();
+            if (index === null || index === undefined) return;
+
+            // Se la regia ha cambiato domanda, resetta lo stato del voto per l'utente
+            if (index !== ultimoIndiceRicevuto) {
+                haGiaVotatoQuestaDomanda = false;
+                ultimoIndiceRicevuto = index;
+            }
+
+            idDomandaCorrente = domande[index].id;
+            document.getElementById('statoIstruzione').innerText = `Domanda attiva ${index + 1} di ${domande.length}`;
+
+            if (haGiaVotatoQuestaDomanda) {
+                mostraSchermataGrazie();
+            } else {
+                mostraFormVoto(domande[index]);
+            }
+        });
+
+        function mostraFormVoto(d) {
+            document.getElementById('quiz-container').innerHTML = `
+                <h1 class="text-xl font-bold text-center mb-6 leading-snug">${d.q}</h1>
+                <div class="space-y-3">
+                    <button onclick="inviaVoto('A')" class="w-full p-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] transition rounded-xl border border-slate-700 text-left text-sm flex items-center justify-between cursor-pointer"><span>${d.opzioni[0]}</span><span class="text-emerald-400">🟢</span></button>
+                    <button onclick="inviaVoto('B')" class="w-full p-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] transition rounded-xl border border-slate-700 text-left text-sm flex items-center justify-between cursor-pointer"><span>${d.opzioni[1]}</span><span class="text-amber-400">🟡</span></button>
+                    <button onclick="inviaVoto('C')" class="w-full p-4 bg-slate-800 hover:bg-slate-700 active:scale-[0.99] transition rounded-xl border border-slate-700 text-left text-sm flex items-center justify-between cursor-pointer"><span>${d.opzioni[2]}</span><span class="text-rose-400">🔴</span></button>
+                </div>
+            `;
+        }
+
+        function inviaVoto(opzione) {
+            haGiaVotatoQuestaDomanda = true;
+            db.ref('voti_multidomanda/' + idDomandaCorrente + '/' + opzione).transaction((current) => (current || 0) + 1);
+            mostraSchermataGrazie();
+        }
+
+        function mostraSchermataGrazie() {
+            document.getElementById('quiz-container').innerHTML = `
+                <div class="text-center space-y-3 animate-fade-in">
+                    <span class="text-4xl">👍</span>
+                    <h2 class="text-xl font-bold text-emerald-400">Risposta registrata!</h2>
+                    <p class="text-slate-400 text-xs px-4">Attendi che il relatore passi alla prossima domanda sul maxischermo.</p>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>
